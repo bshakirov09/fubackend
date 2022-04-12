@@ -1,0 +1,48 @@
+name: CI
+
+on: [ push ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:13.3
+        env:
+          POSTGRES_USER: fitness
+          POSTGRES_PASSWORD: fitness
+          POSTGRES_DB: fitness
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Cache dependencies
+        uses: actions/cache@v2
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements/test.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+
+      - name: Install dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements/test.txt
+
+      - name: Load environment variables
+        uses: c-py/action-dotenv-to-setenv@v2
+        with:
+          env-file: deployments/test/.example-env
+
+      - name: Run migrations
+        run: python manage.py migrate
